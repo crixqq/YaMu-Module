@@ -255,12 +255,11 @@ class YaMusicMod(loader.Module):
             except RuntimeError:
                 pass
 
+
     @loader.loop(1800)
     async def premium_check(self):
         me = await self._client.get_me()
         self._premium = me.premium if hasattr(me, "premium") else False
-
-self.autobio = self.autobio_loop()
 
 @loader.loop(interval=60)
 async def autobio(self):
