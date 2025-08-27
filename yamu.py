@@ -227,12 +227,13 @@ class YaMusicMod(loader.Module):
 
     def __init__(self):
         self.config = loader.ModuleConfig(
-            loader.ConfigValue("YandexMusicToken", None, lambda: self.strings["_cfg_yandexmusictoken"], validator=loader.validators.Hidden()),
-            loader.ConfigValue("AutoBioTemplate", "🎵 Слушаю {track} от {artists} ⏱ {time}",
-                            lambda: self.strings["_cfg_autobiotemplate"], validator=loader.validators.String()),
-            loader.ConfigValue("AutoMessageTemplate", "🎧 {artists} - {track} / {time} {link}", lambda: self.strings["_cfg_automesgtemplate"], validator=loader.validators.String()),
+            loader.ConfigValue("YandexMusicToken", None, lambda: self.strings["_cfg_token"], validator=loader.validators.Hidden()),
+            loader.ConfigValue("AutoBioTemplate", "🎵 Слушаю {track} от {artists} ⏱ {time}", lambda: self.strings["_cfg_autobio"], validator=loader.validators.String()),
+            loader.ConfigValue("NoPlayingBio", "Не слушаю ничего", lambda: self.strings["_cfg_no_playing_bio"], validator=loader.validators.String()),
             loader.ConfigValue("update_interval", 300, lambda: self.strings["_cfg_update_interval"], validator=loader.validators.Integer(minimum=100)),
     )
+
+    self.autobio = self.autobio_loop()
 
     async def on_dlmod(self):
         if not self.get("guide_send", False):
@@ -247,7 +248,7 @@ class YaMusicMod(loader.Module):
         self._db = db
 
         me = await self._client.get_me()
-        self._premium = me.premium if hasattr(me, "premium") else False
+        self._premium = getattr(me, "premium", False)
         self.premium_check.start()
 
         if self.get("autobio", False):
@@ -255,7 +256,6 @@ class YaMusicMod(loader.Module):
                 self.autobio.start()
             except RuntimeError:
                 pass
-
 
     @loader.loop(1800)
     async def premium_check(self):
@@ -266,25 +266,28 @@ self.autobio = self.autobio_loop()
 
 @loader.loop(interval=60)
 async def autobio(self):
-    client = ClientAsync(self.config["YandexMusicToken"])
-    await client.init()
-    res = await get_current_track(client, self.config["YandexMusicToken"])
-    if not res["success"]:
+    if not self.config["YandexMusicToken"]:
         return
-    track = res["track"][0]
-    artists = ", ".join(a["name"] for a in track["artists"])
-    title = track["title"]
-    duration_ms = int(track["duration_ms"])
-    text = self.config["AutoBioTemplate"].format(
-        artists=artists,
-        track=title,
-        time=f"{duration_ms//1000//60:02}:{duration_ms//1000%60:02}"
-    )
+    client = await get_client(self.config["YandexMusicToken"])
+    track_info = await self.__get_now_playing(self.config["YandexMusicToken"], client)
+    if not track_info:
+        text = self.config["NoPlayingBio"]
+    else:
+        track = track_info["track"]
+        artists = ", ".join(track["artists"])
+        duration_ms = int(track["duration_ms"])
+        text = self.config["AutoBioTemplate"].format(
+            artists=artists,
+            track=track["title"],
+            time=f"{duration_ms//1000//60:02}:{duration_ms//1000%60:02}"
+        )
+
     try:
-        await self.client(UpdateProfileRequest(about=text[:140 if self._premium else 70]))
-    except FloodWaitError as e:
-        logger.info(f"Sleeping {e.seconds}")
-        await sleep(e.seconds)
+        await self._client(telethon.functions.account.UpdateProfileRequest(
+            about=text[:140 if self._premium else 70]
+        ))
+    except Exception:
+        pass
 
     @loader.command(
         ru_doc="👉 Гайд по получению токена Яндекс.Музыки",
