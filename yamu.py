@@ -233,8 +233,6 @@ class YaMusicMod(loader.Module):
             loader.ConfigValue("update_interval", 300, lambda: self.strings["_cfg_update_interval"], validator=loader.validators.Integer(minimum=100)),
     )
 
-    self.autobio = self.autobio_loop()
-
     async def on_dlmod(self):
         if not self.get("guide_send", False):
             await self.inline.bot.send_message(
