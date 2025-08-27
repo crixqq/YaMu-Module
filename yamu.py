@@ -250,7 +250,6 @@ class YaMusicMod(loader.Module):
         self._premium = me.premium if hasattr(me, "premium") else False
         self.premium_check.start()
 
-        # If user previously enabled autobio (saved in module storage), start it
         if self.get("autobio", False):
             try:
                 self.autobio.start()
@@ -263,6 +262,7 @@ class YaMusicMod(loader.Module):
         me = await self._client.get_me()
         self._premium = me.premium if hasattr(me, "premium") else False
 
+self.autobio = self.autobio_loop()
 
 @loader.loop(interval=60)
 async def autobio(self):
